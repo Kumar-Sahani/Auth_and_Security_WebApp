@@ -1,13 +1,13 @@
 //jshint esversion:6
-require('dotenv').config()
+const bcrypt = require('bcrypt');
 const express = require('express');
 const bodyParser = require('body-parser');
 const ejs = require('ejs');
 const mongoose = require('mongoose');
-const md5 = require('md5');
 
 const app = express();
 
+const saltRounds = 10;
 
 mongoose.connect("mongodb://localhost:27017/userDB", {useNewUrlParser: true});
 
@@ -44,45 +44,48 @@ app.get("/register", function(req, res){
 });
 
 
-app.post("/register", async function(req, res){
-
-    const newUser = new User({
-        email: req.body.username,
-        password: md5(req.body.password)
+app.post("/register", function(req, res){
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+        // Store hash in your password DB.
+        const newUser = new User({
+            email: req.body.username,
+            password: hash
+        });
+    
+        newUser.save().then(saveDoc => {
+            saveDoc === newUser;
+        });
+    
+        res.render("secrets");
     });
 
-    await newUser.save().then(saveDoc => {
-        saveDoc === newUser;
-    });
 
-    res.render("secrets");
     
 });
 
 app.post("/login", async function(req, res){
 
     const username = req.body.username;
-    const password = md5(req.body.password);
+    const password = req.body.password;
 
-try{
     await User.findOne({
         email: username
     }).then(foundUser => {
         if(foundUser){
-            if(foundUser.password === password){
-                res.render("secrets");
-            }else{
-                res.send("<h1>Wrong Password</h1>");
-            }
+
+            //bcryt
+            bcrypt.compare(req.body.password, foundUser.password, function(err, result) {
+                if(result === true){
+                    res.render("secrets");
+                }else{
+                    res.send("<h1>Wrong Password</h1>");
+                }
+            });
+
         }else{
             res.send("<h1>User Not Found</h1>");
         }
     });
-}
-catch(err){
-    console.log(err);
-}
-
 
 })
 
