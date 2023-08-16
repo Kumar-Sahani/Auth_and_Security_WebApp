@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 const session = require('express-session');
 const passport = require('passport');
 const passportLocalMongoose = require('passport-local-mongoose');
-// const passportLocal = require('passport-local');
+
 
 const app = express();
 
@@ -20,11 +20,13 @@ app.use(bodyParser.urlencoded({
 
 
 //seting up session
-app.use(session({
-    secret: "This is a secreat.",
-    resave: false,
-    saveUninitialized: false
-}))
+app.use(
+    session({
+        secret: "This is a secreat.",
+        resave: false,
+        saveUninitialized: false
+    })
+);
 
 
 //intiallizing passport
@@ -35,9 +37,7 @@ app.use(passport.session());
 
 
 //connecting mongodb
-mongoose.connect("mongodb://localhost:27017/userDB", {useNewUrlParser: true});
-// to remove deprecation warning
-// mongoose.set("useCreateIndex", true); 
+mongoose.connect("mongodb://127.0.0.1:27017/userDB", {useNewUrlParser: true});
 
 //mongoose Schema
 const userSchema = new mongoose.Schema({
@@ -54,11 +54,23 @@ const User = new mongoose.model("User", userSchema);
 // using passport local mongoose to create a local login Strategy
 passport.use(User.createStrategy());
 
-//seting passport to serialize and deserialize User
-passport.serializeUser(User.serializeUser());
-passport.deserializeUser(User.deserializeUser());
+// seting passport to serialize and deserialize User
+passport.serializeUser(function(user, done) {
+    process.nextTick(function() {
+        done(null, { id: user._id, username: user.username });
+    });
+});
+passport.deserializeUser(function(user, done) {
+    process.nextTick(function() {
+        return done(null, user);
+    });
+});
+// passport.serializeUser(User.serializeUser());
+// passport.deserializeUser(User.deserializeUser());
 
 
+
+//get route request
 app.get("/", function(req, res){
     res.render("home");
 });
@@ -71,20 +83,59 @@ app.get("/register", function(req, res){
     res.render("register");
 });
 
-
-
-
-app.post("/register", function(req, res){
-    
+app.get("/secrets", function(req, res){
+    if(req.isAuthenticated()){
+        res.render("secrets");
+    }else{
+        res.redirect("/login");
+    }
 });
 
-app.post("/login", async function(req, res){
+app.get("/logout", (req, res, next) => {
+	req.logout(function(err) {
+		if (err) {
+			return next(err);
+		} else {
+		    res.redirect('/');
+        }
+	});
+});
 
-})
 
+//post route request
+app.post("/register", function(req, res){
+    User.register(
+        { username: req.body.username}, 
+        req.body.password, 
+        function(err, user){
+            if(err){
+                console.log(err);
+                res.redirect("/register");
+            } else {
+                passport.authenticate('local')(req, res, function(){
+                    res.redirect("/secrets");
+                });
+            }
+        }
+    );   
+});
 
+app.post("/login", function(req, res){
+    const user = new User({
+        username: req.body.userName,
+        password: req.body.password
+    });
 
-
+    req.login(user, function(err){
+        if(err){
+            console.log(err);
+        }else{
+            passport.authenticate("local")(req, res, function(){
+                res.redirect("/secrets");
+            });
+        }
+    });  
+});
 
 
 
